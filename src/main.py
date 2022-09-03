@@ -61,15 +61,19 @@ def read_file(filename):
                 #else do nothing
 
 def init_free_schools():
+    # we start every school and position to be free
     for school, position_list in school_positions.items():
         free_schools.append(school)
         for position in position_list:
             free_positions.append((school, position))
 
 def clear_preference_list():
+    # starting professor preference list
     for professor in professor_preferences_entry.keys():
         professor_preferences[professor] = []
 
+    # the professor list will only allow schools who would accept him, so we remove the other from there
+    # the order in this list is very important
     for professor in professor_preferences.keys():
 
         for school in professor_preferences_entry[professor]:
@@ -78,11 +82,14 @@ def clear_preference_list():
             if len(positions) > 0:
                 professor_preferences[professor].append(school)
 
+    # starting the schools preference list
     for school in school_positions.keys():
         school_preferences[school] = {}
         for position in school_positions[school]:
             school_preferences[school][position] = []
     
+    # the school preference list will be every professor that has at leat the qualification needed for the position
+    # the order in this list is not important
     for school, position_list in school_positions.items():
 
         for position in position_list:
@@ -91,8 +98,6 @@ def clear_preference_list():
                 if position <= qualification:
                     school_preferences[school][position] += abilities_professor[qualification]
 
-    pprint.pprint(school_preferences)
-
 def is_matched(school):
     taken = [couple for couple in matches if school in couple]
 
@@ -100,82 +105,78 @@ def is_matched(school):
 
 def assign(school, professor, position):
 
+    # append the new match to the match list
     matches.append((professor, school, position))
 
+    # if the assigned school is in the free_schools list, we remove it
     if school in free_schools:
         free_schools.remove(school)
 
     print("Matched {} with {} at position {}".format(professor, school, position))
 
 def unassign(pair):
+    # remove the match from the matches list
     matches.remove(pair)
 
     professor, school, position = pair
 
+    # if the school is not on another match, we append it back to free_schools list
     if not is_matched(school):
         free_schools.append(school)
 
+    # we append the position back to the free positions list
     free_positions.append((school, position))
 
     print("Unmatched {} with {} at position {}".format(professor, school, position))
 
-def try_match(school, professor, position):
+def try_match(school, professor, position, free=False):
     print("Trying to match {} with {} at position {}".format(school, professor, position))
+    school_has_other_match = True
     taken_match = [couple for couple in matches if professor in couple]
 
+    # if current professor is not already allocated, match it with the school
     if len(taken_match) == 0:
         assign(school, professor, position)
     
     else:
         try:
+            # current school index in the professor preference list, signifing the professor preference for it
             current_school = professor_preferences[professor].index(taken_match[0][1])
         except:
+            # if current school not in professor preference list, we give a number bigger then the lenght of it
             current_school = 100
 
         try:
+            # potential school index in the professor preference list
             potential_school = professor_preferences[professor].index(school)
         except:
+
+            # if potential school not in the list, we give it a number bigger then the lenght of it
+            # and bigger then the current_school max index possible
             potential_school = 101
-        
-        if potential_school < current_school or taken_match[0][2] > position:
+
+        #if we want to unmatch school only if it is on another match
+        if free:
+            school_has_other_match = len([couple for couple in matches if taken_match[0][1] in couple]) > 1
+
+        # if the potential school preference is bigger then the current and, optionally, the current is already on another match
+        if potential_school < current_school or taken_match[0][2] > position and school_has_other_match:
+
+            # we unassign the old match
             unassign(taken_match[0])
+
+            # we assign the new match
             assign(school, professor, position)
 
         else:
-            free_positions.append((school, position))
-
-def try_match_free(school, professor, position):
-    print("Trying to match {} with {} at position {}".format(school, professor, position))
-    taken_match = [couple for couple in matches if professor in couple]
-
-    if len(taken_match) == 0:
-        assign(school, professor, position)
-    
-    else:
-        try:
-            current_school = professor_preferences[professor].index(taken_match[0][1])
-        except:
-            current_school = 100
-
-        try:
-            potential_school = professor_preferences[professor].index(school)
-        except:
-            potential_school = 101
-
-        taken_school = [couple for couple in matches if taken_match[0][1] in couple]
-        if potential_school < current_school or taken_match[0][2] > position and len(taken_school) > 1:
-            unassign(taken_match[0])
-            assign(school, professor, position)
-
-        else:
+            # else, we put the position back to the possible positions list
             free_positions.append((school, position))
 
 def school_optimal():
     clear_preference_list()
     init_free_schools()
-    pprint.pprint([free_schools, free_positions])
 
-    # this will break for now but the logic is here
+    # first loop to allocate at least one professor for each school
     while len(free_schools) > 0:
 
         school = free_schools.pop()
@@ -192,6 +193,7 @@ def school_optimal():
     #     pprint.pprint(len(matches))
     
 
+    # second loop to finish the matching keeping the condition from the first loop true
     school, position = free_positions.pop()
 
     while len(free_positions) > 0:  
@@ -199,7 +201,7 @@ def school_optimal():
 
             professor = school_preferences[school][position].pop()
 
-            try_match_free(school, professor, position)
+            try_match(school, professor, position, free= True)
 
         school, position = free_positions.pop()
 
@@ -215,5 +217,6 @@ if __name__ == "__main__":
 
     school_optimal()
 
+    print("Emparelhamentos realizados ordenados por escolas:")
     pprint.pprint(sorted(matches, key= lambda x: int(x[1][1:])))
-    pprint.pprint(len(matches))
+    pprint.pprint("Professores alocados estavelmente: {}".format(len(matches)))
